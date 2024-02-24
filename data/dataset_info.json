@@ -319,5 +319,22 @@
       "prompt": "content"
     },
     "folder": "python"
+  },
+  "deita-6k": {
+    "hf_hub_url": "hkust-nlp/deita-6k-v0",
+    "formatting": "sharegpt"
+  },
+  "ultrafeedback": {
+    "hf_hub_url": "HuggingFaceH4/ultrafeedback_binarized",
+    "columns": {
+      "messages": "messages"
+    },
+    "tags": {
+      "role_tag": "role",
+      "content_tag": "content",
+      "user_tag": "user",
+      "assistant_tag": "assistant"
+    },
+    "formatting": "sharegpt"
   }
 }

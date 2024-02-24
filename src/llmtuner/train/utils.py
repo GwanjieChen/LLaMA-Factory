@@ -4,7 +4,7 @@ import torch
 
 from ..extras.logging import get_logger
 from ..hparams import FinetuningArguments, ModelArguments
-from ..model import get_modelcard_args, load_model_and_tokenizer, load_valuehead_params
+from ..model import get_modelcard_args, load_model_and_tokenizer, load_valuehead_params, load_StarlingRM
 
 
 if TYPE_CHECKING:
@@ -108,9 +108,14 @@ def create_reward_model(
         )
         reward_model_args = ModelArguments(**reward_model_args_dict)
         reward_finetuning_args = FinetuningArguments(finetuning_type="lora")
-        reward_model, _ = load_model_and_tokenizer(
+        if 'starling' in reward_model_args.model_name_or_path.lower():
+            reward_model, _ = load_StarlingRM(
             reward_model_args, reward_finetuning_args, is_trainable=False, add_valuehead=True
         )
+        else:
+            reward_model, _ = load_model_and_tokenizer(
+                reward_model_args, reward_finetuning_args, is_trainable=False, add_valuehead=True
+            )
         logger.info("Loaded full weights of reward model from {}".format(finetuning_args.reward_model))
         logger.warning("Please ensure the ppo model and reward model share SAME tokenizer and vocabulary.")
         return reward_model

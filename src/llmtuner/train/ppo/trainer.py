@@ -69,11 +69,12 @@ class CustomPPOTrainer(PPOTrainer, Trainer):
 
         if finetuning_args.reward_model_type == "full":
             if self.is_deepspeed_enabled:
-                if not (
-                    getattr(reward_model.pretrained_model, "is_loaded_in_8bit", False)
-                    or getattr(reward_model.pretrained_model, "is_loaded_in_4bit", False)
-                ):  # quantized models are already set on the correct device
-                    self.reward_model = self._prepare_deepspeed(self.reward_model)
+                # if not (
+                #     getattr(reward_model.pretrained_model, "is_loaded_in_8bit", False)
+                #     or getattr(reward_model.pretrained_model, "is_loaded_in_4bit", False)
+                # ):  # quantized models are already set on the correct device
+                #     
+                self.reward_model = self._prepare_deepspeed(self.reward_model)
             else:
                 self.reward_model = self.accelerator.prepare_model(self.reward_model, evaluation_mode=True)
 
@@ -147,7 +148,8 @@ class CustomPPOTrainer(PPOTrainer, Trainer):
                 mini_batch_queries, mini_batch_responses = self.get_inputs(
                     batch[idx : idx + self.config.mini_batch_size]
                 )
-                mini_batch_rewards = self.get_rewards(mini_batch_queries, mini_batch_responses, unwrapped_model)
+                # mini_batch_rewards = self.get_rewards(mini_batch_queries, mini_batch_responses, unwrapped_model)
+                mini_batch_rewards = self.get_rewards_Starling(mini_batch_queries, mini_batch_responses, unwrapped_model)
                 queries.extend(mini_batch_queries)
                 responses.extend(mini_batch_responses)
                 rewards.extend(mini_batch_rewards)
@@ -282,6 +284,47 @@ class CustomPPOTrainer(PPOTrainer, Trainer):
         if self.finetuning_args.reward_model_type == "lora":
             replace_model(unwrapped_model, target="default")
 
+        return rewards
+
+    @torch.no_grad()
+    def get_rewards_Starling(
+        self,
+        queries: List[torch.Tensor],
+        responses: List[torch.Tensor],
+        unwrapped_model: "AutoModelForCausalLMWithValueHead",
+    ) -> List[torch.Tensor]:
+        r"""
+        Computes scores using given reward model.
+
+        Both inputs and outputs are put on CPU.
+        """
+        if self.finetuning_args.reward_model_type == "api":
+            token_ids = [torch.cat((q, r), dim=-1).tolist() for q, r in zip(queries, responses)]
+            messages = self.tokenizer.batch_decode(token_ids, skip_special_tokens=True)
+            return get_rewards_from_server(self.reward_model, messages)
+
+        reward_model = self.reward_model
+        token_ids = [torch.cat((q, r), dim=-1).tolist() for q, r in zip(queries, responses)]
+        messages = self.tokenizer.batch_decode(token_ids, skip_special_tokens=True)
+        input_ids = []
+        attention_masks = []
+        reward_tokenizer = reward_model.tokenizer
+        reward_tokenizer.truncation_side = "left"
+        encodings_dict = reward_tokenizer(
+            messages,
+            truncation=True,
+            max_length=1024,
+            padding="max_length",
+            return_tensors="pt",
+        ).to(self.current_device)
+        input_ids = encodings_dict["input_ids"]
+        attention_masks = encodings_dict["attention_mask"]
+        with torch.cuda.amp.autocast(dtype=self.model_args.compute_dtype):  # support bf16
+            scores = reward_model(input_ids=input_ids, attention_mask=attention_masks)
+
+        rewards = []
+        for score in scores:
+            rewards.append(score.float().detach().cpu())  # use fp32 type
         return rewards
 
     @PPODecorators.empty_device_cache()

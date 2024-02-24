@@ -10,7 +10,7 @@ from ..extras.misc import count_parameters, get_current_device, try_download_mod
 from .adapter import init_adapter
 from .patcher import patch_config, patch_model, patch_tokenizer, patch_valuehead_model
 from .utils import load_valuehead_params, register_autoclass
-
+from .starling_rm import get_StarlingRewardModel
 
 if TYPE_CHECKING:
     from transformers import PreTrainedModel, PreTrainedTokenizer
@@ -33,6 +33,7 @@ def load_model_and_tokenizer(
     finetuning_args: "FinetuningArguments",
     is_trainable: Optional[bool] = False,
     add_valuehead: Optional[bool] = False,
+    return_tokenizer: Optional[bool] = True
 ) -> Tuple["PreTrainedModel", "PreTrainedTokenizer"]:
     r"""
     Loads pretrained model and tokenizer.
@@ -48,7 +49,7 @@ def load_model_and_tokenizer(
         "revision": model_args.model_revision,
         "token": model_args.hf_hub_token,
     }
-
+    print(model_args.model_name_or_path)
     tokenizer = AutoTokenizer.from_pretrained(
         model_args.model_name_or_path,
         use_fast=model_args.use_fast_tokenizer,
@@ -133,3 +134,45 @@ def load_model_and_tokenizer(
         logger.info("This IS expected that the trainable params is 0 if you are using model for inference only.")
 
     return model, tokenizer
+
+def load_StarlingRM(
+    model_args: "ModelArguments",
+    finetuning_args: "FinetuningArguments",
+    is_trainable: Optional[bool] = False,
+    add_valuehead: Optional[bool] = False,
+) -> Tuple["PreTrainedModel", "PreTrainedTokenizer"]:
+    r"""
+    Loads pretrained model and tokenizer.
+
+    Support both training and inference.
+    """
+    config_kwargs = {
+        "trust_remote_code": True,
+        "cache_dir": model_args.cache_dir,
+        "revision": model_args.model_revision,
+        "token": model_args.hf_hub_token,
+    }
+    print(model_args.model_name_or_path)
+    
+    model = get_StarlingRewardModel(
+        model_args.model_name_or_path
+    )
+
+    if not is_trainable:
+        model.requires_grad_(False)
+        model = model.to(model_args.compute_dtype) if not getattr(model, "quantization_method", None) else model
+        model.eval()
+    else:
+        model.train()
+
+    trainable_params, all_param = count_parameters(model)
+    logger.info(
+        "trainable params: {:d} || all params: {:d} || trainable%: {:.4f}".format(
+            trainable_params, all_param, 100 * trainable_params / all_param
+        )
+    )
+
+    if not is_trainable:
+        logger.info("This IS expected that the trainable params is 0 if you are using model for inference only.")
+
+    return model, None
