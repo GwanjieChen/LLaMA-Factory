@@ -298,14 +298,11 @@ class CustomPPOTrainer(PPOTrainer, Trainer):
 
         Both inputs and outputs are put on CPU.
         """
-        if self.finetuning_args.reward_model_type == "api":
-            token_ids = [torch.cat((q, r), dim=-1).tolist() for q, r in zip(queries, responses)]
-            messages = self.tokenizer.batch_decode(token_ids, skip_special_tokens=True)
-            return get_rewards_from_server(self.reward_model, messages)
-
         reward_model = self.reward_model
-        token_ids = [torch.cat((q, r), dim=-1).tolist() for q, r in zip(queries, responses)]
-        messages = self.tokenizer.batch_decode(token_ids, skip_special_tokens=True)
+        responses_str = self.tokenizer.batch_decode(responses.tolist(), skip_special_tokens=True)
+        queries_str = self.tokenizer.batch_decode(queries.tolist(), skip_special_tokens=True)
+        messages = [f"<s>[INST] {response} </s> [/INST] {query} </s>" for response, query in zip(responses_str,queries_str)]
+        print(f'messages:{messages}')
         input_ids = []
         attention_masks = []
         reward_tokenizer = reward_model.tokenizer
