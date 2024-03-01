@@ -9,9 +9,8 @@ from transformers import GenerationConfig, Trainer, TrainerControl, TrainerState
 from transformers.trainer_pt_utils import remove_dummy_checkpoint
 from transformers.trainer_utils import PREFIX_CHECKPOINT_DIR
 from transformers.utils import SAFE_WEIGHTS_NAME, WEIGHTS_NAME
-from trl import PPOTrainer
 from trl.core import PPODecorators, logprobs_from_logits
-
+from .apa_trainer import APATrainer
 from ...extras.callbacks import FixValueHeadModelCallback, LogCallback
 from ...extras.logging import get_logger
 from ...extras.misc import AverageMeter, count_parameters, get_logits_processor
@@ -28,9 +27,9 @@ if TYPE_CHECKING:
 logger = get_logger(__name__)
 
 
-class CustomPPOTrainer(PPOTrainer, Trainer):
+class CustomAPATrainer(APATrainer, Trainer):
     r"""
-    Inherits PPOTrainer.
+    Inherits APATrainer.
     """
 
     def __init__(
@@ -43,7 +42,7 @@ class CustomPPOTrainer(PPOTrainer, Trainer):
         reward_model: "AutoModelForCausalLMWithValueHead",
         **kwargs,
     ):
-        PPOTrainer.__init__(self, **kwargs)
+        APATrainer.__init__(self, **kwargs)
 
         self.args = training_args
         self.model_args = model_args
@@ -78,9 +77,9 @@ class CustomPPOTrainer(PPOTrainer, Trainer):
             else:
                 self.reward_model = self.accelerator.prepare_model(self.reward_model, evaluation_mode=True)
 
-    def ppo_train(self, resume_from_checkpoint: Optional[str] = None) -> None:
+    def apa_train(self, resume_from_checkpoint: Optional[str] = None) -> None:
         r"""
-        Implements training loop for the PPO stage, like _inner_training_loop() in Huggingface's Trainer.
+        Implements training loop for the APA stage, like _inner_training_loop() in Huggingface's Trainer.
         """
         if resume_from_checkpoint is not None:
             raise ValueError("`resume_from_checkpoint` will be supported in the future version.")
@@ -159,10 +158,10 @@ class CustomPPOTrainer(PPOTrainer, Trainer):
             unwrapped_model.config.use_cache = False
             self.model.train()
 
-            # Run PPO step
+            # Run APA step
             stats = self.step(queries, responses, rewards)
             self.tokenizer.padding_side = "left"  # restore padding side
-            loss_meter.update(float(stats["ppo/loss/total"]), n=len(rewards))
+            loss_meter.update(float(stats["apa/loss/total"]), n=len(rewards))
             reward_meter.update(torch.stack(rewards).mean().item(), n=len(rewards))
 
             if self.config.log_with is not None:
@@ -180,7 +179,7 @@ class CustomPPOTrainer(PPOTrainer, Trainer):
                 logs = dict(
                     loss=round(loss_meter.avg, 4),
                     reward=round(reward_meter.avg, 4),
-                    learning_rate=stats["ppo/learning_rate"],
+                    learning_rate=stats["apa/learning_rate"],
                     epoch=round(step / steps_in_epoch, 2),
                 )
                 tqdm.write(str(logs))
@@ -214,7 +213,7 @@ class CustomPPOTrainer(PPOTrainer, Trainer):
         if self.model_args.upcast_layernorm:
             layernorm_params = dump_layernorm(self.model)
 
-        if batch["input_ids"].size(0) == 1:  # handle llama2 ppo with gradient accumulation > 1
+        if batch["input_ids"].size(0) == 1:  # handle llama2 apa with gradient accumulation > 1
             start_index = (batch["input_ids"][0] != self.tokenizer.pad_token_id).nonzero()[0].item()
             for k, v in batch.items():
                 batch[k] = v[:, start_index:]

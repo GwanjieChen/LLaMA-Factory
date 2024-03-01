@@ -3,26 +3,29 @@ deepspeed --num_gpus 8 --master_port=9901 src/train_bash.py \
     --deepspeed ./script/static/zero_stage2.json \
     --stage ppo \
     --do_train \
+    --cutoff_len 1024 \
     --model_name_or_path openchat/openchat_3.5 \
     --dataset alpaca_gpt4_en  \
     --split train \
     --template openchat \
-    --finetuning_type full \
+    --finetuning_type lora \
+    --lora_rank 16 \
+    --lora_target q_proj,v_proj \
     --reward_model berkeley-nest/Starling-RM-7B-alpha \
     --reward_model_type full \
     --output_dir results/starling-7B-ppo-alpaca \
     --overwrite_output_dir \
-    --per_device_train_batch_size 8 \
-    --gradient_accumulation_steps 2 \
+    --per_device_train_batch_size 32 \
+    --gradient_accumulation_steps 1 \
     --lr_scheduler_type cosine \
     --top_k 0 \
-    --top_p 1 \
+    --top_p 0.9 \
     --max_new_tokens 1024 \
     --no_ignore_pad_token_for_loss \
     --logging_steps 2 \
     --save_steps 200 \
-    --learning_rate 5e-7 \
-    --num_train_epochs 5.0 \
+    --learning_rate 1e-5 \
+    --num_train_epochs 1.0 \
     --plot_loss \
     --bf16 \
     --run_name='alpaca--lm:openchat7b--rm:starling-7b-RM--lr:1e-5--bsize:128' \

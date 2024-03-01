@@ -1,7 +1,7 @@
-export WANDB_PROJECT=starling_ppo
+export WANDB_PROJECT=starling_apa
 deepspeed --num_gpus 8 --master_port=9901 src/train_bash.py \
     --deepspeed ./script/static/zero_stage2.json \
-    --stage ppo \
+    --stage apa \
     --do_train \
     --model_name_or_path openchat/openchat_3.5 \
     --dataset alpaca_gpt4_en  \
@@ -10,7 +10,7 @@ deepspeed --num_gpus 8 --master_port=9901 src/train_bash.py \
     --finetuning_type full \
     --reward_model berkeley-nest/Starling-RM-7B-alpha \
     --reward_model_type full \
-    --output_dir results/starling-7B-ppo-alpaca \
+    --output_dir results/starling-7B-apa-alpaca \
     --overwrite_output_dir \
     --per_device_train_batch_size 8 \
     --gradient_accumulation_steps 2 \
@@ -23,6 +23,7 @@ deepspeed --num_gpus 8 --master_port=9901 src/train_bash.py \
     --save_steps 200 \
     --learning_rate 5e-7 \
     --num_train_epochs 5.0 \
+    --ppo_epochs 4.0 \
     --plot_loss \
     --bf16 \
     --run_name='alpaca--lm:openchat7b--rm:starling-7b-RM--lr:1e-5--bsize:128' \
