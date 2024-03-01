@@ -14,6 +14,7 @@ from .misc import fix_valuehead_checkpoint
 
 if TYPE_CHECKING:
     from transformers import TrainerControl, TrainerState, TrainingArguments
+    from transformers import GenerationConfig
 
 
 logger = get_logger(__name__)
@@ -24,12 +25,16 @@ class FixValueHeadModelCallback(TrainerCallback):
         r"""
         Event called after a checkpoint save.
         """
-        if args.should_save:
-            fix_valuehead_checkpoint(
-                model=kwargs.pop("model"),
-                output_dir=os.path.join(args.output_dir, "{}-{}".format(PREFIX_CHECKPOINT_DIR, state.global_step)),
-                safe_serialization=args.save_safetensors,
-            )
+        try:
+            if args.should_save:
+                fix_valuehead_checkpoint(
+                    model=kwargs.pop("model"),
+                    generate_config = kwargs.pop("generate_config"),
+                    output_dir=os.path.join(args.output_dir, "{}-{}".format(PREFIX_CHECKPOINT_DIR, state.global_step)),
+                    safe_serialization=args.save_safetensors,
+                )
+        except Exception as e:
+            print(f'Saving ValueHead meet problem: {e}')
 
 
 class LogCallback(TrainerCallback):

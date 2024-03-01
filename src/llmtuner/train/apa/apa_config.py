@@ -72,7 +72,7 @@ class APAConfig:
     """Adam learning rate"""
     adap_kl_ctrl: bool = True
     """Use adaptive KL control, otherwise linear"""
-    init_kl_coef: Optional[float] = 0.2
+    init_kl_coef: Optional[float] = 0.05
     """Initial KL penalty coefficient (used for adaptive and linear control)"""
     kl_penalty: Literal["kl", "abs", "mse", "full"] = "kl"
     """kl penalty options: 'kl': model_logp - ref_logp,  'abs': abs(kl),  'mse': mean squared error mse(kl) and 'full': the actual kl for all tokens in the distribution"""
@@ -86,7 +86,7 @@ class APAConfig:
     """Lambda parameter for advantage calculation"""
     vf_coef: float = 0.1
     """Scaling factor for value loss"""
-    adv_coeff_sq: float = 10
+    adv_coeff_sq: float = 1
     """the 1/lambda of APA algorithm"""
     batch_size: int = 128
     """Number of samples per optimisation step"""

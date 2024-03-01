@@ -194,7 +194,7 @@ class CustomAPATrainer(APATrainer, Trainer):
                     os.path.join(self.args.output_dir, "{}-{}".format(PREFIX_CHECKPOINT_DIR, self.state.global_step))
                 )
                 self.save_callback.on_save(
-                    self.args, self.state, self.control, model=self.accelerator.unwrap_model(self.model)
+                    self.args, self.state, self.control, model=self.accelerator.unwrap_model(self.model), generate_config=self.generation_config
                 )
 
             if self.control.should_epoch_stop or self.control.should_training_stop:

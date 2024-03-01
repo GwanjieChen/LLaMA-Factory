@@ -1,7 +1,7 @@
 import gc
 import os
 from typing import TYPE_CHECKING, Dict, Tuple
-
+from transformers import GenerationConfig
 import torch
 from peft import PeftModel
 from transformers import InfNanRemoveLogitsProcessor, LogitsProcessorList, PreTrainedModel
@@ -78,7 +78,7 @@ def count_parameters(model: torch.nn.Module) -> Tuple[int, int]:
 
 
 def fix_valuehead_checkpoint(
-    model: "AutoModelForCausalLMWithValueHead", output_dir: str, safe_serialization: bool
+    model: "AutoModelForCausalLMWithValueHead", output_dir: str, safe_serialization: bool, generate_config: GenerationConfig
 ) -> None:
     r"""
     The model is already unwrapped.
@@ -113,6 +113,7 @@ def fix_valuehead_checkpoint(
             decoder_state_dict[name.replace("pretrained_model.", "")] = param
 
     os.remove(path_to_checkpoint)
+    model.pretrained_model.generation_config = generate_config
     model.pretrained_model.save_pretrained(
         output_dir, state_dict=decoder_state_dict or None, safe_serialization=safe_serialization
     )

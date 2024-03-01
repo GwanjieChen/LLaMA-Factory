@@ -746,7 +746,10 @@ class APATrainer(BaseTrainer):
         batch_dict = {
             "queries": queries,
             "responses": responses,
-            "logprobs": all_logprobs.to(torch.float32),
+            # Differ from PPO, old_log_probs of APA is the logprob of reference model, 
+            # while for PPO it is logprob of self.model
+            "logprobs": ref_logprobs.to(torch.float32),
+            # old_value for APA is not used, so this param can be ignored
             "values": values.to(torch.float32),
             "masks": masks,
             "advantages": advantages,
@@ -1153,101 +1156,101 @@ class APATrainer(BaseTrainer):
             delta = rewards[:, t] + self.config.gamma * nextvalues - values[:, t]
             lastgaelam = delta + self.config.gamma * self.config.lam * lastgaelam
             advantages_reversed.append(lastgaelam)
-        advantages = torch.stack(advantages_reversed[::-1]).transpose(0, 1)
+        advantages = torch.stack(advantages_reversed[::-1], dim=1)
 
         returns = advantages + values
         advantages = masked_whiten(advantages, mask)
         advantages = advantages.detach()
         return values, advantages, returns
 
-    def loss(
-        self,
-        old_logprobs: torch.FloatTensor,
-        values: torch.FloatTensor,
-        logits: torch.FloatTensor,
-        vpreds: torch.FloatTensor,
-        logprobs: torch.FloatTensor,
-        mask: torch.LongTensor,
-        advantages: torch.FloatTensor,
-        returns: torch.FloatTensor,
-    ):
-        """
-        Calculate policy and value losses.
+    # def loss(
+    #     self,
+    #     old_logprobs: torch.FloatTensor,
+    #     values: torch.FloatTensor,
+    #     logits: torch.FloatTensor,
+    #     vpreds: torch.FloatTensor,
+    #     logprobs: torch.FloatTensor,
+    #     mask: torch.LongTensor,
+    #     advantages: torch.FloatTensor,
+    #     returns: torch.FloatTensor,
+    # ):
+    #     """
+    #     Calculate policy and value losses.
 
-        Args:
-            old_logprobs (`torch.FloatTensor`):
-                Log probabilities of the model, shape (`batch_size`, `response_length`)
-            values (`torch.FloatTensor`):
-                Values of the value head, shape (`batch_size`, `response_length`)
-            rewards (`torch.FloatTensor`):
-                Rewards from the reward model, shape (`batch_size`, `response_length`)
-            logits (`torch.FloatTensor`):
-                Logits of the model, shape (`batch_size`, `response_length`, `vocab_size`)
-            v_pred (`torch.FloatTensor`):
-                Values of the value head, shape (`batch_size`, `response_length`)
-            logprobs (`torch.FloatTensor`):
-                Log probabilities of the model, shape (`batch_size`, `response_length`)
-        """
+    #     Args:
+    #         old_logprobs (`torch.FloatTensor`):
+    #             Log probabilities of the model, shape (`batch_size`, `response_length`)
+    #         values (`torch.FloatTensor`):
+    #             Values of the value head, shape (`batch_size`, `response_length`)
+    #         rewards (`torch.FloatTensor`):
+    #             Rewards from the reward model, shape (`batch_size`, `response_length`)
+    #         logits (`torch.FloatTensor`):
+    #             Logits of the model, shape (`batch_size`, `response_length`, `vocab_size`)
+    #         v_pred (`torch.FloatTensor`):
+    #             Values of the value head, shape (`batch_size`, `response_length`)
+    #         logprobs (`torch.FloatTensor`):
+    #             Log probabilities of the model, shape (`batch_size`, `response_length`)
+    #     """
 
-        vpredclipped = clip_by_value(
-            vpreds,
-            values - self.config.cliprange_value,
-            values + self.config.cliprange_value,
-        )
+    #     vpredclipped = clip_by_value(
+    #         vpreds,
+    #         values - self.config.cliprange_value,
+    #         values + self.config.cliprange_value,
+    #     )
 
-        vf_losses1 = (vpreds - returns) ** 2
-        vf_losses2 = (vpredclipped - returns) ** 2
-        vf_loss = 0.5 * masked_mean(torch.max(vf_losses1, vf_losses2), mask)
-        vf_clipfrac = masked_mean(torch.gt(vf_losses2, vf_losses1).float(), mask)
+    #     vf_losses1 = (vpreds - returns) ** 2
+    #     vf_losses2 = (vpredclipped - returns) ** 2
+    #     vf_loss = 0.5 * masked_mean(torch.max(vf_losses1, vf_losses2), mask)
+    #     vf_clipfrac = masked_mean(torch.gt(vf_losses2, vf_losses1).float(), mask)
 
-        ratio = torch.exp(logprobs - old_logprobs)
+    #     ratio = torch.exp(logprobs - old_logprobs)
 
-        pg_losses = -advantages * ratio
-        pg_losses2 = -advantages * torch.clamp(ratio, 1.0 - self.config.cliprange, 1.0 + self.config.cliprange)
+    #     pg_losses = -advantages * ratio
+    #     pg_losses2 = -advantages * torch.clamp(ratio, 1.0 - self.config.cliprange, 1.0 + self.config.cliprange)
 
-        pg_loss = masked_mean(torch.max(pg_losses, pg_losses2), mask)
-        pg_clipfrac = masked_mean(torch.gt(pg_losses2, pg_losses).float(), mask)
+    #     pg_loss = masked_mean(torch.max(pg_losses, pg_losses2), mask)
+    #     pg_clipfrac = masked_mean(torch.gt(pg_losses2, pg_losses).float(), mask)
 
-        loss = pg_loss + self.config.vf_coef * vf_loss
+    #     loss = pg_loss + self.config.vf_coef * vf_loss
 
-        avg_ratio = masked_mean(ratio, mask).item()
-        if avg_ratio > self.config.ratio_threshold:
-            warnings.warn(
-                f"The average ratio of batch ({avg_ratio:.2f}) exceeds threshold {self.config.ratio_threshold:.2f}. Skipping batch."
-            )
-            pg_loss = pg_loss * 0.0
-            vf_loss = vf_loss * 0.0
-            loss = loss * 0.0
+    #     avg_ratio = masked_mean(ratio, mask).item()
+    #     if avg_ratio > self.config.ratio_threshold:
+    #         warnings.warn(
+    #             f"The average ratio of batch ({avg_ratio:.2f}) exceeds threshold {self.config.ratio_threshold:.2f}. Skipping batch."
+    #         )
+    #         pg_loss = pg_loss * 0.0
+    #         vf_loss = vf_loss * 0.0
+    #         loss = loss * 0.0
 
-        entropy = masked_mean(entropy_from_logits(logits), mask)
+    #     entropy = masked_mean(entropy_from_logits(logits), mask)
 
-        approxkl = 0.5 * masked_mean((logprobs - old_logprobs) ** 2, mask)
-        policykl = masked_mean(old_logprobs - logprobs, mask)
+    #     approxkl = 0.5 * masked_mean((logprobs - old_logprobs) ** 2, mask)
+    #     policykl = masked_mean(old_logprobs - logprobs, mask)
 
-        return_mean, return_var = masked_mean(returns, mask), masked_var(returns, mask)
-        value_mean, value_var = masked_mean(values, mask), masked_var(values, mask)
+    #     return_mean, return_var = masked_mean(returns, mask), masked_var(returns, mask)
+    #     value_mean, value_var = masked_mean(values, mask), masked_var(values, mask)
 
-        stats = dict(
-            loss=dict(policy=pg_loss.detach(), value=vf_loss.detach(), total=loss.detach()),
-            policy=dict(
-                entropy=entropy.detach(),
-                approxkl=approxkl.detach(),
-                policykl=policykl.detach(),
-                clipfrac=pg_clipfrac.detach(),
-                advantages=advantages.detach(),
-                advantages_mean=masked_mean(advantages, mask).detach(),
-                ratio=ratio.detach(),
-            ),
-            returns=dict(mean=return_mean.detach(), var=return_var.detach()),
-            val=dict(
-                vpred=masked_mean(vpreds, mask).detach(),
-                error=masked_mean((vpreds - returns) ** 2, mask).detach(),
-                clipfrac=vf_clipfrac.detach(),
-                mean=value_mean.detach(),
-                var=value_var.detach(),
-            ),
-        )
-        return pg_loss, self.config.vf_coef * vf_loss, flatten_dict(stats)
+    #     stats = dict(
+    #         loss=dict(policy=pg_loss.detach(), value=vf_loss.detach(), total=loss.detach()),
+    #         policy=dict(
+    #             entropy=entropy.detach(),
+    #             approxkl=approxkl.detach(),
+    #             policykl=policykl.detach(),
+    #             clipfrac=pg_clipfrac.detach(),
+    #             advantages=advantages.detach(),
+    #             advantages_mean=masked_mean(advantages, mask).detach(),
+    #             ratio=ratio.detach(),
+    #         ),
+    #         returns=dict(mean=return_mean.detach(), var=return_var.detach()),
+    #         val=dict(
+    #             vpred=masked_mean(vpreds, mask).detach(),
+    #             error=masked_mean((vpreds - returns) ** 2, mask).detach(),
+    #             clipfrac=vf_clipfrac.detach(),
+    #             mean=value_mean.detach(),
+    #             var=value_var.detach(),
+    #         ),
+    #     )
+    #     return pg_loss, self.config.vf_coef * vf_loss, flatten_dict(stats)
 
     def loss(
         self,
@@ -1276,7 +1279,10 @@ class APATrainer(BaseTrainer):
         # vf_clipfrac = torch.sum((vf_loss2 > vf_loss1).float() * mask) / n
         # Unbiased KL-div estimates (`k3`). Ref: http://joschu.net/blog/kl-approx.html
         sq_loss = torch.sum(((logprobs - self.config.adv_coeff_sq*advantages - old_logprobs.detach()) * mask) ** 2)  / n
-
+        advantages_loss = torch.sum(self.config.adv_coeff_sq*advantages.detach() * mask)/n
+        logprobs_loss = torch.sum(logprobs.detach() * mask)/n
+        old_log_prob_loss = torch.sum(old_logprobs.detach() * mask)/n
+        sq_loss_without_advantage = torch.sum(((logprobs.detach() - old_logprobs.detach()) * mask) ** 2) / n
         # awac_loss = torch.sum(-logprobs*torch.exp(self.adv_coeff_log*advantages)* mask) / n
         # if self.loss_str == "square":
         loss = sq_loss + self.config.vf_coef * vf_loss
@@ -1293,7 +1299,7 @@ class APATrainer(BaseTrainer):
             value_mean, value_var = masked_mean(values, mask), masked_var(values, mask)
         
         stats = dict(
-            loss=dict(policy=sq_loss.detach(), value=vf_loss.detach(), total=loss.detach()),
+            loss=dict(L_apa=sq_loss.detach(), L_value=vf_loss.detach(), total=loss.detach(), no_adv_sq_loss = sq_loss_without_advantage),
             policy=dict(
                 entropy=entropy.detach(),
                 approxkl=approxkl.detach(),

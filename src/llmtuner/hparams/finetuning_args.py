@@ -122,7 +122,7 @@ class FinetuningArguments(FreezeArguments, LoraArguments, RLHFArguments):
     r"""
     Arguments pertaining to which techniques we are going to fine-tuning with.
     """
-    stage: Optional[Literal["pt", "sft", "rm", "ppo", "dpo"]] = field(
+    stage: Optional[Literal["pt", "sft", "rm", "ppo", "dpo", 'apa']] = field(
         default="sft", metadata={"help": "Which stage will be performed in training."}
     )
     finetuning_type: Optional[Literal["lora", "freeze", "full"]] = field(
