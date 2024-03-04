@@ -148,7 +148,7 @@ class CustomAPATrainer(APATrainer, Trainer):
                     batch[idx : idx + self.config.mini_batch_size]
                 )
                 # mini_batch_rewards = self.get_rewards(mini_batch_queries, mini_batch_responses, unwrapped_model)
-                mini_batch_rewards = self.get_rewards_Starling(mini_batch_queries, mini_batch_responses, unwrapped_model)
+                mini_batch_rewards = self.get_rewards_Starling(mini_batch_queries, mini_batch_responses, unwrapped_model, self.finetuning_args.sigmoid_score)
                 queries.extend(mini_batch_queries)
                 responses.extend(mini_batch_responses)
                 rewards.extend(mini_batch_rewards)
@@ -291,6 +291,7 @@ class CustomAPATrainer(APATrainer, Trainer):
         queries: List[torch.Tensor],
         responses: List[torch.Tensor],
         unwrapped_model: "AutoModelForCausalLMWithValueHead",
+        sigmoid_score: False
     ) -> List[torch.Tensor]:
         r"""
         Computes scores using given reward model.
@@ -318,8 +319,11 @@ class CustomAPATrainer(APATrainer, Trainer):
             scores = reward_model(input_ids=input_ids, attention_mask=attention_masks)
         rewards = []
         for score in scores:
-            normalized_score = torch.sigmoid(score)  # normalize score using sigmoid
-            rewards.append(normalized_score.float().detach().cpu())  # use fp32 type
+            if sigmoid_score:
+                normalized_score = torch.sigmoid(score)  # normalize score using sigmoid
+                rewards.append(normalized_score.float().detach().cpu())  # use fp32 type
+            else:
+                rewards.append(score.float().detach().cpu())
         print(f'responses:{responses_str[0][:50]}...  score:{scores[0]} reward:{rewards[0]}'.replace('\n',' '))
         return rewards
 

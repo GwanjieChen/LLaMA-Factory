@@ -51,6 +51,11 @@ def run_apa(
         batch_size=backward_batch_size * finetuning_args.ppo_buffer_size,
         gradient_accumulation_steps=training_args.gradient_accumulation_steps,
         ppo_epochs=finetuning_args.ppo_epochs,
+        # the only two hyperparams in the APA algorithm
+        # <<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<<
+        vf_coef=finetuning_args.vf_coef,
+        adv_coeff_sq=finetuning_args.adv_coeff_sq,
+        # >>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>>
         max_grad_norm=training_args.max_grad_norm,
         seed=training_args.seed,
         optimize_device_cache=True,

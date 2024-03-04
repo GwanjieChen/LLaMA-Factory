@@ -115,6 +115,15 @@ class RLHFArguments:
         default="lora",
         metadata={"help": "The type of the reward model in PPO training. Lora model only supports lora training."},
     )
+    vf_coef: Optional[float] = field(
+        default=0.1, metadata={"help": "The Scaling factor for value loss in ppo and apa"}
+    )
+    adv_coeff_sq: Optional[float] = field(
+        default=1.0, metadata={"help": "The 1/lambda factor for APA loss"}
+    )
+    sigmoid_score: Optional[bool] = field(
+        default=False, metadata={"help": "Use score normalization in PPO training."}
+    )
 
 
 @dataclass
