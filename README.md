@@ -10,7 +10,7 @@ to start with apa, you should prepare the environment of Llama-Factory, and then
 pip install -r requirements_apa.txt
 ```
 
-then you can download the Openchat-3.5 and the reward model of starling-RM from huggingface
+then you can download the Openchat-3.5 and the reward model of starling-RM from huggingface. the dataset used for RL is [ultra-feedback](https://huggingface.co/datasets/HuggingFaceH4/ultrafeedback_binarized/tree/main)
 
 In the end, follow the example and run your apa training
 ```shell
