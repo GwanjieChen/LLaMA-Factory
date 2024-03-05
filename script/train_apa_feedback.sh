@@ -30,4 +30,4 @@ deepspeed --num_gpus 8 --master_port=9901 src/train_bash.py \
     --report_to wandb \
     --logging_step 1 \
     --ppo_logger wandb \
-    --adv_coeff_sq 5 \
+    --adv_coeff_sq 1 \
